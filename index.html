@@ -20,7 +20,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            width: 32px;
+            width: 38px;
         }
 
         .direction-badge {
@@ -28,17 +28,25 @@
             color: white;
             font-size: 8px;
             font-weight: 900;
-            padding: 0.5px 2px;
-            border-radius: 2px;
-            margin-bottom: 1px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            margin-bottom: 2px;
             z-index: 20;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             letter-spacing: -0.025em;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
 
+        /* Telemetry Speed Dots */
+        .speed-dot { width: 4px; height: 4px; border-radius: 50%; box-shadow: 0 0 4px currentColor; }
+        .speed-stopped { background-color: #ef4444; color: #ef4444; }
+        .speed-moving { background-color: #10b981; color: #10b981; }
+
         .streetcar-arrow {
-            filter: drop-shadow(0 1.5px 2px rgba(0,0,0,0.3));
-            transition: transform 1s linear;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
+            transition: transform 0.8s linear; /* Matches shortened animation duration */
         }
         
         /* Route Colors */
@@ -49,20 +57,58 @@
         .route-510b-fill { fill: #64748b; }
         .route-510b-stroke { stroke: #334155; }
         
-        /* Bold Black Stop Dot */
+        /* Stop Dots */
+        .route-stop-dot {
+            background-color: #ffffff;
+            border: 2px solid #94a3b8;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        .route-stop-dot:hover {
+            background-color: #0f172a;
+            border-color: #0f172a;
+            transform: scale(1.5);
+            z-index: 50 !important;
+        }
+        
+        /* Bold Black Stop Dot (Specific ETA Stop) */
         .black-stop-dot {
             background-color: #000000;
-            width: 12px;
-            height: 12px;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             border: 2px solid #ffffff;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            z-index: 100 !important;
         }
         
         .route-label-card {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(8px);
             border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .prediction-window {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            padding: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            pointer-events: none;
+            width: max-content;
+        }
+        
+        .stop-name-tooltip {
+            background: #0f172a;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            white-space: nowrap;
         }
 
         @keyframes pulse-soft {
@@ -75,24 +121,27 @@
 <body class="bg-slate-50 font-sans text-slate-900 overflow-hidden h-screen flex flex-col">
 
     <!-- Header -->
-    <header class="bg-white border-b px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm z-20">
+    <header class="bg-white px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm z-[30] relative">
         <div class="flex items-center gap-3">
-            <div class="flex-shrink-0">
+            <div class="flex-shrink-0 relative">
                 <img src="https://images.squarespace-cdn.com/content/v2/namespaces/memberAccountAvatars/libraries/5554fc6be4b010ac6e753e8b/0620c9d8550a4f6b9d79ed1a12fb2f60/0620c9d8550a4f6b9d79ed1a12fb2f60.jpeg?format=300w" 
                      alt="DENMAR Logo" 
-                     class="h-10 w-10 rounded-full border-2 border-slate-100 shadow-sm object-cover">
+                     class="h-10 w-10 rounded-full border-2 border-slate-100 shadow-sm object-cover relative z-10">
+                <div class="absolute inset-0 rounded-full border-2 border-blue-500 animate-ping opacity-20"></div>
             </div>
             <div>
                 <h1 class="text-base lg:text-lg font-black tracking-tight uppercase leading-none">
                     DTM • Streetcar Live
                 </h1>
-                <p class="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">Direct GPS Track Feed</p>
+                <p class="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                    Live Telemetry Array
+                </p>
             </div>
         </div>
 
         <div class="flex items-center gap-3 lg:gap-4">
-            <!-- Route toggles hidden on mobile -->
-            <div class="hidden lg:flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <div class="hidden lg:flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner">
                 <button id="toggle-509" onclick="toggleRoute('509')" class="px-5 py-1.5 rounded-lg text-xs font-black transition-all bg-blue-600 text-white shadow-md">
                     509
                 </button>
@@ -101,7 +150,6 @@
                 </button>
             </div>
             
-            <!-- Robust Time Display - Visible everywhere -->
             <div class="flex flex-col items-end justify-center border-l border-slate-200 pl-3 lg:pl-4 min-w-[100px]">
                 <div id="live-clock" class="text-sm font-semibold text-slate-800 tabular-nums leading-none tracking-tight">--:--:--</div>
                 <div class="text-[9px] font-medium text-slate-500 uppercase tracking-wider mt-1.5 leading-none">
@@ -115,10 +163,9 @@
     <main class="flex-1 relative">
         <div id="map"></div>
 
-        <!-- Route Indicator Overlay -->
         <div class="absolute top-4 left-4 z-[1000] space-y-2 pointer-events-none lg:pointer-events-auto">
             <div id="card-509" class="route-label-card p-3 rounded-xl shadow-lg border-l-4 border-blue-600 flex items-center gap-3 w-56">
-                <div class="bg-blue-600 text-white font-black px-2 py-0.5 rounded text-[10px]">509</div>
+                <div class="bg-blue-600 text-white font-black px-2 py-0.5 rounded text-[10px] shadow-sm">509</div>
                 <div>
                     <p class="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Harbourfront</p>
                     <p class="text-[11px] font-bold text-slate-800">Union ↔ Exhibition</p>
@@ -126,14 +173,14 @@
             </div>
             <div id="card-510" class="route-label-card p-3 rounded-xl shadow-lg border-l-4 border-red-600 flex flex-col gap-2 w-56">
                 <div class="flex items-center gap-3">
-                    <div class="bg-red-600 text-white font-black px-2 py-0.5 rounded text-[10px]">510A</div>
+                    <div class="bg-red-600 text-white font-black px-2 py-0.5 rounded text-[10px] shadow-sm">510A</div>
                     <div>
                         <p class="text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Spadina Main</p>
                         <p class="text-[11px] font-bold text-slate-800">Direct to Union</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-3 opacity-60">
-                    <div class="bg-slate-500 text-white font-black px-2 py-0.5 rounded text-[10px]">510B</div>
+                    <div class="bg-slate-500 text-white font-black px-2 py-0.5 rounded text-[10px] shadow-sm">510B</div>
                     <div>
                         <p class="text-[9px] font-black text-slate-500 uppercase leading-none mb-0.5">Short Turn</p>
                         <p class="text-[11px] font-bold text-slate-600">Ends @ Queens Quay</p>
@@ -145,44 +192,77 @@
         <!-- Initial Loader -->
         <div id="initial-loader" class="absolute inset-0 z-[2000] bg-white flex flex-col items-center justify-center transition-opacity duration-500">
             <div class="flex flex-col items-center gap-4">
-                <div class="h-12 w-12 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
+                <div class="h-12 w-12 border-4 border-slate-100 border-t-blue-600 border-r-red-600 rounded-full animate-spin shadow-lg"></div>
                 <div class="text-center">
-                    <p class="font-black text-slate-800 tracking-widest uppercase text-[10px]">Compiling Clean Tracks</p>
-                    <p class="text-[9px] text-slate-400 font-bold mt-1 loading-pulse">Averaging geometry paths...</p>
+                    <p class="font-black text-slate-800 tracking-widest uppercase text-[10px]">Initializing Network</p>
+                    <p class="text-[9px] text-slate-400 font-bold mt-1 loading-pulse">Syncing TTC master route data...</p>
                 </div>
             </div>
         </div>
 
-        <!-- Fleet Stats Panel -->
-        <div class="absolute bottom-6 right-6 w-48 bg-white/90 backdrop-blur shadow-xl rounded-2xl p-4 border border-white z-[1000] hidden md:block">
-            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
-                <span class="text-[10px] font-black uppercase text-slate-400 tracking-widest">Active Units</span>
-                <span id="total-count" class="text-[9px] font-black bg-slate-100 px-2 py-0.5 rounded-full text-slate-600">0</span>
+        <!-- Stop Predictions Panel (Bottom Left) -->
+        <div class="absolute bottom-20 md:bottom-6 left-4 md:left-6 w-[260px] bg-white/95 backdrop-blur shadow-2xl rounded-2xl p-4 border border-slate-100 z-[1000]">
+            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
+                <span class="text-[10px] font-black uppercase text-slate-800 tracking-widest">Queens Quay ETAs</span>
+                <span class="text-[9px] font-bold text-slate-400">STOP 15332</span>
             </div>
-            <div class="space-y-2">
+            <div id="eta-container" class="grid grid-cols-4 gap-1.5">
+                <div class="col-span-4 text-center text-[9px] font-bold text-slate-500 py-1 loading-pulse">Syncing Network...</div>
+            </div>
+        </div>
+
+        <!-- Advanced Fleet Telemetry Panel -->
+        <div class="absolute bottom-6 right-6 w-52 bg-white/95 backdrop-blur shadow-2xl rounded-2xl p-4 border border-slate-100 z-[1000] hidden md:block">
+            <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
+                <span class="text-[10px] font-black uppercase text-slate-800 tracking-widest">Fleet Health</span>
+                <span id="total-count" class="text-[10px] font-black bg-slate-800 text-white px-2 py-0.5 rounded shadow-sm">0</span>
+            </div>
+            <div class="mb-3 pb-2 border-b border-slate-100">
+                <div class="flex justify-between items-end mb-1">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Avg Speed</span>
+                    <span class="text-xs font-black text-slate-800 tabular-nums"><span id="avg-speed">0</span> <span class="text-[8px] text-slate-400">km/h</span></span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden flex">
+                    <div id="speed-bar-red" class="bg-red-500 h-full transition-all duration-500" style="width: 50%"></div>
+                    <div id="speed-bar-green" class="bg-emerald-500 h-full transition-all duration-500" style="width: 50%"></div>
+                </div>
+                <div class="flex justify-between mt-1 text-[8px] font-bold text-slate-400 uppercase">
+                    <span id="stat-stopped">0 Stopped</span>
+                    <span id="stat-moving">0 Moving</span>
+                </div>
+            </div>
+            <div class="space-y-1.5">
                 <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-bold text-slate-600">509</span>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-2 h-2 rounded-full bg-blue-600"></div>
+                        <span class="text-[10px] font-bold text-slate-600">Route 509</span>
+                    </div>
                     <span id="count-509" class="text-[10px] font-mono font-black text-blue-600">0</span>
                 </div>
                 <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-bold text-slate-600">510A</span>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-2 h-2 rounded-full bg-red-600"></div>
+                        <span class="text-[10px] font-bold text-slate-600">Route 510A</span>
+                    </div>
                     <span id="count-510a" class="text-[10px] font-mono font-black text-red-600">0</span>
                 </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-[11px] font-bold text-slate-400">510B</span>
-                    <span id="count-510b" class="text-[10px] font-mono font-black text-slate-400">0</span>
+                <div class="flex items-center justify-between opacity-60">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-2 h-2 rounded-full bg-slate-500"></div>
+                        <span class="text-[10px] font-bold text-slate-600">Route 510B</span>
+                    </div>
+                    <span id="count-510b" class="text-[10px] font-mono font-black text-slate-500">0</span>
                 </div>
             </div>
         </div>
     </main>
 
-    <!-- Mobile Navigation -->
-    <footer class="md:hidden bg-white border-t px-4 py-2 flex justify-around items-center z-20 shadow-lg">
-        <button onclick="toggleRoute('509')" id="mobile-toggle-509" class="flex-1 flex flex-col items-center py-1">
+    <footer class="md:hidden bg-white border-t px-4 py-2 flex justify-around items-center z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button onclick="toggleRoute('509')" id="mobile-toggle-509" class="flex-1 flex flex-col items-center py-1 transition-transform active:scale-95">
             <div id="bar-509" class="h-1 w-8 rounded-full mb-1 bg-blue-600"></div>
             <span class="text-[10px] font-black uppercase tracking-tighter">509</span>
         </button>
-        <button onclick="toggleRoute('510')" id="mobile-toggle-510" class="flex-1 flex flex-col items-center py-1">
+        <button onclick="toggleRoute('510')" id="mobile-toggle-510" class="flex-1 flex flex-col items-center py-1 transition-transform active:scale-95">
             <div id="bar-510" class="h-1 w-8 rounded-full mb-1 bg-red-600"></div>
             <span class="text-[10px] font-black uppercase tracking-tighter">510</span>
         </button>
@@ -190,14 +270,18 @@
 
     <script>
         const API_BASE = 'https://retro.umoiq.com/service/publicXMLFeed';
-        const UPDATE_INTERVAL = 1000; // Hyper-responsive 1 second polling
+        const UPDATE_INTERVAL = 1000; 
         
         let map;
         let vehicleMarkers = {}; 
         let routeLineLayers = {}; 
+        let routeStopLayers = {}; 
+        let officialDirectionMap = {}; 
         let activeRoutes = ['509', '510'];
         let isUpdating = false;
         let lastSyncTime = Date.now();
+        let stopMarker;
+        let activePredictions = []; // Locally decremented ETAs
 
         window.onload = function() {
             lucide.createIcons();
@@ -218,6 +302,12 @@
                     const seconds = Math.floor((now.getTime() - lastSyncTime) / 1000);
                     syncEl.innerText = seconds;
                 }
+
+                // Professional Countdown Logic: Decrement ETA locally every second
+                activePredictions.forEach(p => {
+                    if (p.seconds > 0) p.seconds--;
+                });
+                renderETAs();
             }, 1000);
         }
 
@@ -233,27 +323,27 @@
 
             L.control.zoom({ position: 'topright' }).addTo(map);
 
-            // Add the bold black dot for the requested specific stop
+            map.createPane('stopsPane');
+            map.getPane('stopsPane').style.zIndex = 400; 
+            
             const stopIcon = L.divIcon({
                 className: 'custom-div-icon',
                 html: `<div class="black-stop-dot" title="Key Stop"></div>`,
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
+                iconSize: [14, 14],
+                iconAnchor: [7, 7]
             });
-            L.marker([43.63957988257761, -79.38194050693195], { icon: stopIcon }).addTo(map)
+            stopMarker = L.marker([43.63957988257761, -79.38194050693195], { icon: stopIcon }).addTo(map)
                 .bindPopup(`<div class="p-1"><b class="text-xs font-black uppercase">Queens Quay Stop</b></div>`);
 
-            // 1. Fetch official track geometry first
             await Promise.all(activeRoutes.map(route => fetchRouteConfig(route)));
             
-            // Render lines in deterministic order (510 bottom, 509 top) to prevent colour overlap race conditions
             ['510', '509'].forEach(routeTag => {
-                if (activeRoutes.includes(routeTag) && routeLineLayers[routeTag]) {
-                    routeLineLayers[routeTag].forEach(layer => layer.addTo(map));
+                if (activeRoutes.includes(routeTag)) {
+                    if (routeLineLayers[routeTag]) routeLineLayers[routeTag].forEach(layer => layer.addTo(map));
+                    if (routeStopLayers[routeTag]) routeStopLayers[routeTag].forEach(stop => stop.addTo(map));
                 }
             });
 
-            // 2. Start live data loop
             updateData();
             setInterval(updateData, UPDATE_INTERVAL);
             setInterval(updatePopupTimers, 1000);
@@ -267,117 +357,180 @@
                 const parser = new DOMParser();
                 const xml = parser.parseFromString(text, 'text/xml');
                 
+                const directions = xml.querySelectorAll('direction');
+                directions.forEach(d => {
+                    const tag = d.getAttribute('tag');
+                    const name = d.getAttribute('name').toUpperCase();
+                    let cardinal = '--';
+                    if (name.includes('EAST')) cardinal = 'EB';
+                    if (name.includes('WEST')) cardinal = 'WB';
+                    if (name.includes('NORTH')) cardinal = 'NB';
+                    if (name.includes('SOUTH')) cardinal = 'SB';
+                    officialDirectionMap[tag] = cardinal;
+                });
+
                 const paths = Array.from(xml.querySelectorAll('path'));
                 const color = routeTag === '509' ? '#3b82f6' : '#ef4444'; 
-                
-                const layers = [];
+                const lineLayers = [];
                 
                 paths.forEach(path => {
                     const pointNodes = Array.from(path.querySelectorAll('point'));
-                    const points = pointNodes.map(p => [
-                        parseFloat(p.getAttribute('lat')),
-                        parseFloat(p.getAttribute('lon'))
-                    ]);
-                    
+                    const points = pointNodes.map(p => [parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon'))]);
                     if (points.length < 2) return;
 
-                    // Glitch/Spiderweb filter
                     let isGlitch = false;
                     for (let i = 1; i < points.length; i++) {
                         const dist = Math.sqrt(Math.pow(points[i][0] - points[i-1][0], 2) + Math.pow(points[i][1] - points[i-1][1], 2));
-                        if (dist > 0.015) { 
-                            isGlitch = true;
-                            break;
-                        }
+                        if (dist > 0.015) { isGlitch = true; break; }
                     }
                     if (isGlitch) return;
                     
-                    // Keep it contained to Spadina/Harbourfront
-                    const LAT_MIN = 43.625;
-                    const LAT_MAX = 43.680; 
-                    const LON_MIN = -79.430; 
-                    const LON_MAX = -79.365; 
-                    
-                    const isCoreRoute = points.every(p => 
-                        p[0] >= LAT_MIN && p[0] <= LAT_MAX && 
-                        p[1] >= LON_MIN && p[1] <= LON_MAX
-                    );
+                    const LAT_MIN = 43.625, LAT_MAX = 43.680, LON_MIN = -79.430, LON_MAX = -79.365; 
+                    const isCoreRoute = points.every(p => p[0] >= LAT_MIN && p[0] <= LAT_MAX && p[1] >= LON_MIN && p[1] <= LON_MAX);
 
                     if (isCoreRoute) {
-                        const poly = L.polyline(points, {
-                            color: color,
-                            weight: 4,          
-                            opacity: 0.65,      
-                            lineJoin: 'round',
-                            lineCap: 'round',
-                            smoothFactor: 1.0   
-                        });
-                        layers.push(poly);
+                        lineLayers.push(L.polyline(points, {
+                            color: color, weight: 4, opacity: 0.65, lineJoin: 'round', lineCap: 'round', smoothFactor: 1.0   
+                        }));
                     }
                 });
-                
-                routeLineLayers[routeTag] = layers;
-            } catch (e) {
-                console.error(`Error fetching config for ${routeTag}:`, e);
-            }
+                routeLineLayers[routeTag] = lineLayers;
+
+                const stops = Array.from(xml.querySelectorAll('route > stop'));
+                const stopLayers = [];
+                const addedStops = new Set();
+
+                stops.forEach(stop => {
+                    const lat = parseFloat(stop.getAttribute('lat'));
+                    const lon = parseFloat(stop.getAttribute('lon'));
+                    const title = stop.getAttribute('title');
+                    
+                    const LAT_MIN = 43.625, LAT_MAX = 43.680, LON_MIN = -79.430, LON_MAX = -79.365;
+                    if (lat >= LAT_MIN && lat <= LAT_MAX && lon >= LON_MIN && lon <= LON_MAX) {
+                        const coordKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+                        if (!addedStops.has(coordKey)) {
+                            addedStops.add(coordKey);
+                            
+                            const stopIcon = L.divIcon({
+                                className: 'custom-div-icon',
+                                html: `<div class="route-stop-dot" style="width: 8px; height: 8px;"></div>`,
+                                iconSize: [8, 8],
+                                iconAnchor: [4, 4]
+                            });
+
+                            const marker = L.marker([lat, lon], { icon: stopIcon, pane: 'stopsPane' });
+                            marker.bindTooltip(`<div class="stop-name-tooltip">${title}</div>`, {
+                                direction: 'top', className: 'custom-stop-tooltip', offset: [0, -4]
+                            });
+                            stopLayers.push(marker);
+                        }
+                    }
+                });
+                routeLineLayers[routeTag] = lineLayers;
+                routeStopLayers[routeTag] = stopLayers;
+
+            } catch (e) { console.error(`Config Error ${routeTag}:`, e); }
         }
 
-        // Fallback for when official direction is missing, constrained strictly by TTC route logic
-        function getRouteLogicalDirection(route, heading) {
-            if (isNaN(heading)) return '--';
-            
-            // Normalize heading to a strict 0-359 range
-            heading = heading % 360;
-            if (heading < 0) heading += 360;
-
-            if (route === '509') {
-                // 509 Eastbound (towards Union): generally North and East (315° through 0° to 135°)
-                if (heading >= 315 || heading < 135) return 'EB';
-                // 509 Westbound (towards Exhibition): generally South and West (135° to 315°)
-                return 'WB';
-            } else {
-                // 510 is exclusively Northbound/Southbound
-                // 90 to 270 covers all Southward movement towards Queens Quay
-                if (heading >= 90 && heading < 270) return 'SB';
-                // 270 to 90 covers all Northward movement towards Spadina Station
-                return 'NB';
-            }
-        }
-
-        // Smoothly interpolates marker position over the update interval
+        // RE-ENGINEERED: Non-bouncing smooth animation
         function animateMarkerLatLng(marker, lat, lng, duration) {
-            const startLatLng = marker.getLatLng();
+            // ALWAYS start from where the marker VISUALLY is now, not where the last data point was.
+            // This prevents the snap-back bounce.
+            const startLatLng = marker.getLatLng(); 
             const startLat = startLatLng.lat;
             const startLng = startLatLng.lng;
             const deltaLat = lat - startLat;
             const deltaLng = lng - startLng;
             
-            // Skip animation for micro-movements to save performance
-            if (Math.abs(deltaLat) < 0.00001 && Math.abs(deltaLng) < 0.00001) {
+            const distance = map.distance(startLatLng, [lat, lng]);
+
+            // Thresholds: Ignore drift < 3m, ignore data-teleportation > 1500m
+            if (distance < 3 || distance > 1500) {
                 marker.setLatLng([lat, lng]);
                 return;
             }
 
             const startTime = performance.now();
+            
+            // USE BUFFER: Finish animation in 800ms to allow a rest period before next poll.
+            const animDuration = duration * 0.8;
 
             function step(currentTime) {
                 const elapsed = currentTime - startTime;
-                const progress = Math.min(elapsed / duration, 1);
+                const progress = Math.min(elapsed / animDuration, 1);
                 
-                marker.setLatLng([
-                    startLat + deltaLat * progress,
-                    startLng + deltaLng * progress
-                ]);
-
+                // Linear interpolation is smoothest for 1s polling
+                marker.setLatLng([startLat + deltaLat * progress, startLng + deltaLng * progress]);
+                
                 if (progress < 1) {
                     marker._animId = requestAnimationFrame(step);
                 }
             }
 
-            if (marker._animId) {
-                cancelAnimationFrame(marker._animId);
-            }
+            if (marker._animId) cancelAnimationFrame(marker._animId);
             marker._animId = requestAnimationFrame(step);
+        }
+
+        async function fetchPredictions() {
+            try {
+                const url = `${API_BASE}?command=predictions&a=ttc&stopId=15332`;
+                const response = await fetch(url);
+                const text = await response.text();
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(text, 'text/xml');
+                
+                let predictions = [];
+                const predNodes = xml.querySelectorAll('prediction');
+                
+                predNodes.forEach(p => {
+                    const route = p.closest('predictions').getAttribute('routeTag');
+                    const vehicleId = p.getAttribute('vehicle');
+                    if (activeRoutes.includes(route)) {
+                        predictions.push({ 
+                            route: route, 
+                            seconds: parseInt(p.getAttribute('seconds')),
+                            vehicleId: vehicleId
+                        });
+                    }
+                });
+                
+                predictions.sort((a, b) => a.seconds - b.seconds);
+                activePredictions = predictions.slice(0, 4);
+                renderETAs();
+            } catch (error) { 
+                console.error("Prediction Fetch Error:", error); 
+            }
+        }
+
+        function renderETAs() {
+            const container = document.getElementById('eta-container');
+            if (!container) return;
+
+            if (activePredictions.length === 0) {
+                container.innerHTML = '<div class="col-span-4 text-center text-[9px] font-bold text-slate-500 py-1">No ETAs available</div>';
+            } else {
+                let html = '';
+                activePredictions.forEach(p => {
+                    const is509 = p.route === '509';
+                    const colorClass = is509 ? 'text-blue-600' : 'text-red-600';
+                    const bgClass = is509 ? 'bg-blue-50/80 border-blue-100' : 'bg-red-50/80 border-red-100';
+                    
+                    const mins = Math.max(0, Math.floor(p.seconds / 60));
+                    
+                    // Check if vehicle is "ghosting" (no GPS for > 60s)
+                    const v = vehicleMarkers[p.vehicleId]?.lastData;
+                    const isStale = v && v.secsSinceReport > 60;
+
+                    html += `
+                        <div class="flex flex-col items-center px-1 py-1.5 rounded-lg border shadow-sm ${bgClass} ${isStale ? 'opacity-50 grayscale-[0.5]' : ''}">
+                            <span class="text-[8px] font-black uppercase leading-none mb-1 ${colorClass}">${p.route}</span>
+                            <span class="text-xs font-black leading-none text-slate-800">${mins}<span class="text-[8px] font-bold text-slate-500 ml-[1px]">m</span></span>
+                            ${isStale ? '<span class="text-[6px] font-black uppercase text-slate-400 mt-0.5">Ghost</span>' : ''}
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            }
         }
 
         async function updateData() {
@@ -385,34 +538,48 @@
             isUpdating = true;
 
             try {
+                fetchPredictions();
+                
                 const results = await Promise.all(activeRoutes.map(route => fetchVehicles(route)));
                 const allVehicles = results.flat();
                 const mapNeedsUpdate = renderVehicles(allVehicles);
                 
-                // Only reset the sync time if vehicle positions actually changed
-                if (mapNeedsUpdate) {
-                    lastSyncTime = Date.now();
-                }
+                if (mapNeedsUpdate) lastSyncTime = Date.now();
                 
                 const c509 = allVehicles.filter(v => v.route === '509').length;
                 const c510a = allVehicles.filter(v => v.route === '510' && !v.isMuted).length;
                 const c510b = allVehicles.filter(v => v.route === '510' && v.isMuted).length;
+                const total = allVehicles.length;
+                
+                let totalSpeed = 0, stopped = 0, moving = 0;
+                allVehicles.forEach(v => {
+                    totalSpeed += v.speed;
+                    if (v.speed < 3) stopped++;
+                    else moving++;
+                });
+
+                const avgSpeed = total > 0 ? Math.round(totalSpeed / total) : 0;
                 
                 document.getElementById('count-509').innerText = c509;
                 document.getElementById('count-510a').innerText = c510a;
                 document.getElementById('count-510b').innerText = c510b;
-                document.getElementById('total-count').innerText = allVehicles.length;
+                document.getElementById('total-count').innerText = total;
+                document.getElementById('avg-speed').innerText = avgSpeed;
+                document.getElementById('stat-stopped').innerText = `${stopped} Stopped`;
+                document.getElementById('stat-moving').innerText = `${moving} Moving`;
+                
+                if (total > 0) {
+                    document.getElementById('speed-bar-red').style.width = `${(stopped/total)*100}%`;
+                    document.getElementById('speed-bar-green').style.width = `${(moving/total)*100}%`;
+                }
                 
                 const loader = document.getElementById('initial-loader');
                 if (loader) {
                     loader.style.opacity = '0';
                     setTimeout(() => loader.remove(), 500);
                 }
-            } catch (error) {
-                console.error("Sync Error:", error);
-            } finally {
-                isUpdating = false;
-            }
+            } catch (error) { console.error("Sync Error:", error); } 
+            finally { isUpdating = false; }
         }
 
         async function fetchVehicles(routeTag) {
@@ -426,22 +593,22 @@
                 return Array.from(xml.querySelectorAll('vehicle')).map(v => {
                     const dirTag = v.getAttribute('dirTag') || '';
                     const isMuted = routeTag === '510' && dirTag.toLowerCase().includes('510b');
+                    const lat = parseFloat(v.getAttribute('lat'));
+                    const lon = parseFloat(v.getAttribute('lon'));
                     
-                    // Directly pull scheduled logical direction if TTC provides it explicitly
-                    let officialDirection = '--';
-                    const dirMatch = dirTag.match(/(NB|SB|EB|WB)$/i);
-                    if (dirMatch) {
-                        officialDirection = dirMatch[1].toUpperCase();
-                    } else {
-                        officialDirection = getRouteLogicalDirection(routeTag, parseFloat(v.getAttribute('heading')));
+                    let officialDirection = officialDirectionMap[dirTag] || '--';
+                    
+                    // UNION LOOP CORRECTION: Force EB logic East of York St
+                    if (routeTag === '509' && lon > -79.381 && officialDirection === 'WB') {
+                        officialDirection = 'EB';
                     }
                     
                     return {
                         id: v.getAttribute('id'),
                         route: routeTag,
                         branch: isMuted ? '510B' : (routeTag === '510' ? '510A' : '509'),
-                        lat: parseFloat(v.getAttribute('lat')),
-                        lon: parseFloat(v.getAttribute('lon')),
+                        lat: lat,
+                        lon: lon,
                         heading: parseFloat(v.getAttribute('heading')) || 0,
                         cardinalText: officialDirection,
                         speed: parseFloat(v.getAttribute('speedKmHr')) || 0,
@@ -466,25 +633,30 @@
             });
 
             vehicles.forEach(v => {
-                let fillClass = '';
-                let strokeClass = '';
-                
+                let fillClass = '', strokeClass = '';
                 if (v.route === '509') {
-                    fillClass = 'route-509-fill';
-                    strokeClass = 'route-509-stroke';
+                    fillClass = 'route-509-fill'; strokeClass = 'route-509-stroke';
                 } else {
                     fillClass = v.isMuted ? 'route-510b-fill' : 'route-510-fill';
                     strokeClass = v.isMuted ? 'route-510b-stroke' : 'route-510-stroke';
                 }
                 
+                let speedColorClass = 'speed-stopped';
+                if (v.speed >= 3) speedColorClass = 'speed-moving';
+
+                const badgeHtml = `<div class="speed-dot ${speedColorClass}"></div>${v.cardinalText}`;
+                
                 const popupContent = `
-                    <div class="p-1 min-w-[130px]">
+                    <div class="p-1 min-w-[140px]">
                         <div class="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-100">
                             <span class="text-[10px] font-black ${v.isMuted ? 'text-slate-400':'text-slate-800'} uppercase">${v.branch}</span>
                             <span class="text-[9px] font-bold text-slate-400">#${v.id}</span>
                         </div>
-                        <p class="text-xs font-bold text-slate-800">${v.cardinalText} @ ${v.speed} km/h</p>
-                        <p class="text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-tight">
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="w-2 h-2 rounded-full ${speedColorClass.replace('speed-', 'bg-')}"></div>
+                            <p class="text-xs font-bold text-slate-800">${v.cardinalText} @ ${v.speed} km/h</p>
+                        </div>
+                        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tight">
                             Synced <span class="live-report-timer" data-start="${v.secsSinceReport}" data-fetched="${v.fetchedAt}">${v.secsSinceReport}</span>s ago
                         </p>
                     </div>
@@ -492,25 +664,19 @@
 
                 if (vehicleMarkers[v.id]) {
                     const prev = vehicleMarkers[v.id].lastData;
-                    
-                    // Only update the map if the specific data point changed from the last fetch
-                    const positionChanged = !prev || prev.lat !== v.lat || prev.lon !== v.lon || prev.heading !== v.heading || prev.cardinalText !== v.cardinalText;
+                    const positionChanged = !prev || prev.lat !== v.lat || prev.lon !== v.lon || prev.heading !== v.heading || prev.cardinalText !== v.cardinalText || prev.speed !== v.speed;
 
                     if (positionChanged) {
                         mapNeedsUpdate = true;
-                        
-                        // Use smooth animation instead of instant jump
                         animateMarkerLatLng(vehicleMarkers[v.id], v.lat, v.lon, UPDATE_INTERVAL);
                         
-                        // Manipulate DOM directly to prevent Leaflet from destroying the div and resetting the CSS transition
                         const el = vehicleMarkers[v.id].getElement();
                         if (el) {
                             const arrow = el.querySelector('.streetcar-arrow');
                             if (arrow) arrow.style.transform = `rotate(${v.heading}deg)`;
                             const badge = el.querySelector('.direction-badge');
-                            if (badge && badge.innerText !== v.cardinalText) badge.innerText = v.cardinalText;
+                            if (badge && badge.innerHTML !== badgeHtml) badge.innerHTML = badgeHtml;
                         }
-                        
                         vehicleMarkers[v.id].setPopupContent(popupContent);
                         vehicleMarkers[v.id].lastData = v;
                     }
@@ -518,7 +684,7 @@
                     mapNeedsUpdate = true;
                     const iconHtml = `
                         <div class="marker-container" id="marker-${v.id}">
-                            <div class="direction-badge">${v.cardinalText}</div>
+                            <div class="direction-badge">${badgeHtml}</div>
                             <div class="streetcar-arrow" style="transform: rotate(${v.heading}deg)">
                                 <svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M50 5 L90 85 L50 70 L10 85 Z" class="${fillClass} ${strokeClass}" stroke-width="8" stroke-linejoin="round" />
@@ -527,20 +693,13 @@
                         </div>
                     `;
 
-                    const icon = L.divIcon({
-                        className: 'custom-div-icon',
-                        html: iconHtml,
-                        iconSize: [32, 40],
-                        iconAnchor: [16, 20]
-                    });
-
+                    const icon = L.divIcon({ className: 'custom-div-icon', html: iconHtml, iconSize: [38, 44], iconAnchor: [19, 22] });
                     const marker = L.marker([v.lat, v.lon], { icon }).addTo(map);
                     marker.bindPopup(popupContent);
                     marker.lastData = v;
                     vehicleMarkers[v.id] = marker;
                 }
             });
-            
             return mapNeedsUpdate;
         }
 
@@ -557,26 +716,24 @@
             if (activeRoutes.includes(route)) {
                 if (activeRoutes.length === 1) return;
                 activeRoutes = activeRoutes.filter(r => r !== route);
-            } else {
-                activeRoutes.push(route);
-            }
+            } else { activeRoutes.push(route); }
             
-            // Clear map layers
             ['510', '509'].forEach(r => {
-                if (routeLineLayers[r]) {
-                    routeLineLayers[r].forEach(layer => map.removeLayer(layer));
-                }
+                if (routeLineLayers[r]) routeLineLayers[r].forEach(layer => map.removeLayer(layer));
+                if (routeStopLayers[r]) routeStopLayers[r].forEach(layer => map.removeLayer(layer));
             });
 
-            // Re-render map layers in strict order (510 bottom, 509 top)
             ['510', '509'].forEach(r => {
-                if (activeRoutes.includes(r) && routeLineLayers[r]) {
-                    routeLineLayers[r].forEach(layer => map.addLayer(layer));
+                if (activeRoutes.includes(r)) {
+                    if (routeLineLayers[r]) routeLineLayers[r].forEach(layer => map.addLayer(layer));
+                    if (routeStopLayers[r]) routeStopLayers[r].forEach(layer => map.addLayer(layer));
                 }
             });
 
             Object.values(vehicleMarkers).forEach(m => map.removeLayer(m));
             vehicleMarkers = {};
+            
+            fetchPredictions();
             updateButtonUI();
             updateData();
         }
@@ -596,7 +753,6 @@
             document.getElementById('card-509').style.opacity = is509 ? "1" : "0.3";
             document.getElementById('card-510').style.opacity = is510 ? "1" : "0.3";
         }
-
     </script>
 </body>
 </html>
