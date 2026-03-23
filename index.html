@@ -75,7 +75,7 @@
 <body class="bg-slate-50 font-sans text-slate-900 overflow-hidden h-screen flex flex-col">
 
     <!-- Header -->
-    <header class="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm z-20">
+    <header class="bg-white border-b px-4 lg:px-6 py-3 flex items-center justify-between shadow-sm z-20">
         <div class="flex items-center gap-3">
             <div class="flex-shrink-0">
                 <img src="https://images.squarespace-cdn.com/content/v2/namespaces/memberAccountAvatars/libraries/5554fc6be4b010ac6e753e8b/0620c9d8550a4f6b9d79ed1a12fb2f60/0620c9d8550a4f6b9d79ed1a12fb2f60.jpeg?format=300w" 
@@ -83,15 +83,16 @@
                      class="h-10 w-10 rounded-full border-2 border-slate-100 shadow-sm object-cover">
             </div>
             <div>
-                <h1 class="text-lg font-black tracking-tight uppercase leading-none">
+                <h1 class="text-base lg:text-lg font-black tracking-tight uppercase leading-none">
                     DTM • Streetcar Live
                 </h1>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">Direct GPS Track Feed</p>
+                <p class="text-[9px] lg:text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">Direct GPS Track Feed</p>
             </div>
         </div>
 
-        <div class="hidden lg:flex items-center gap-4">
-            <div class="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <div class="flex items-center gap-3 lg:gap-4">
+            <!-- Route toggles hidden on mobile -->
+            <div class="hidden lg:flex bg-slate-100 p-1 rounded-xl border border-slate-200">
                 <button id="toggle-509" onclick="toggleRoute('509')" class="px-5 py-1.5 rounded-lg text-xs font-black transition-all bg-blue-600 text-white shadow-md">
                     509
                 </button>
@@ -99,14 +100,15 @@
                     510
                 </button>
             </div>
-            <div class="text-right border-l pl-4 min-w-[140px]">
-                <p id="last-updated-text" class="text-[10px] font-mono font-bold text-slate-400 tracking-tighter uppercase">Initializing...</p>
+            
+            <!-- Robust Time Display - Visible everywhere -->
+            <div class="flex flex-col items-end justify-center border-l border-slate-200 pl-3 lg:pl-4 min-w-[100px]">
+                <div id="live-clock" class="text-sm font-semibold text-slate-800 tabular-nums leading-none tracking-tight">--:--:--</div>
+                <div class="text-[9px] font-medium text-slate-500 uppercase tracking-wider mt-1.5 leading-none">
+                    Updated <span id="sync-timer" class="font-semibold text-slate-700 tabular-nums">0</span>s ago
+                </div>
             </div>
         </div>
-        
-        <button onclick="forceUpdate()" id="refresh-btn" class="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-full transition-all active:scale-90">
-            <i data-lucide="refresh-cw" id="refresh-icon" class="h-4 w-4 text-slate-600"></i>
-        </button>
     </header>
 
     <!-- Map Area -->
@@ -195,11 +197,29 @@
         let routeLineLayers = {}; 
         let activeRoutes = ['509', '510'];
         let isUpdating = false;
+        let lastSyncTime = Date.now();
 
         window.onload = function() {
             lucide.createIcons();
             initMap();
+            startLiveClock();
         };
+
+        function startLiveClock() {
+            setInterval(() => {
+                const now = new Date();
+                const clockEl = document.getElementById('live-clock');
+                if(clockEl) {
+                    clockEl.innerText = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                }
+                
+                const syncEl = document.getElementById('sync-timer');
+                if(syncEl) {
+                    const seconds = Math.floor((now.getTime() - lastSyncTime) / 1000);
+                    syncEl.innerText = seconds;
+                }
+            }, 1000);
+        }
 
         async function initMap() {
             map = L.map('map', { 
@@ -226,6 +246,13 @@
             // 1. Fetch official track geometry first
             await Promise.all(activeRoutes.map(route => fetchRouteConfig(route)));
             
+            // Render lines in deterministic order (510 bottom, 509 top) to prevent colour overlap race conditions
+            ['510', '509'].forEach(routeTag => {
+                if (activeRoutes.includes(routeTag) && routeLineLayers[routeTag]) {
+                    routeLineLayers[routeTag].forEach(layer => layer.addTo(map));
+                }
+            });
+
             // 2. Start live data loop
             updateData();
             setInterval(updateData, UPDATE_INTERVAL);
@@ -241,14 +268,12 @@
                 const xml = parser.parseFromString(text, 'text/xml');
                 
                 const paths = Array.from(xml.querySelectorAll('path'));
-                
                 const color = routeTag === '509' ? '#3b82f6' : '#ef4444'; 
                 
                 const layers = [];
                 
                 paths.forEach(path => {
                     const pointNodes = Array.from(path.querySelectorAll('point'));
-                    
                     const points = pointNodes.map(p => [
                         parseFloat(p.getAttribute('lat')),
                         parseFloat(p.getAttribute('lon'))
@@ -256,19 +281,18 @@
                     
                     if (points.length < 2) return;
 
-                    // Glitch/Spiderweb filter: Remove tracks where points inexplicably jump huge distances
+                    // Glitch/Spiderweb filter
                     let isGlitch = false;
                     for (let i = 1; i < points.length; i++) {
-                        // Pythagorean distance formula to check gap size between connected points
                         const dist = Math.sqrt(Math.pow(points[i][0] - points[i-1][0], 2) + Math.pow(points[i][1] - points[i-1][1], 2));
-                        if (dist > 0.015) { // Represents roughly ~1.5km gap
+                        if (dist > 0.015) { 
                             isGlitch = true;
                             break;
                         }
                     }
                     if (isGlitch) return;
                     
-                    // Keep it contained to Spadina/Harbourfront (removes deadheads to carhouses)
+                    // Keep it contained to Spadina/Harbourfront
                     const LAT_MIN = 43.625;
                     const LAT_MAX = 43.680; 
                     const LON_MIN = -79.430; 
@@ -283,11 +307,11 @@
                         const poly = L.polyline(points, {
                             color: color,
                             weight: 4,          
-                            opacity: 0.65,      // Reduced opacity so lines are softer
+                            opacity: 0.65,      
                             lineJoin: 'round',
                             lineCap: 'round',
                             smoothFactor: 1.0   
-                        }).addTo(map);
+                        });
                         layers.push(poly);
                     }
                 });
@@ -298,32 +322,77 @@
             }
         }
 
-        function getCardinal(heading) {
-            if (heading >= 337.5 || heading < 22.5) return 'NB';
-            if (heading >= 22.5 && heading < 67.5) return 'NE';
-            if (heading >= 67.5 && heading < 112.5) return 'EB';
-            if (heading >= 112.5 && heading < 157.5) return 'SE';
-            if (heading >= 157.5 && heading < 202.5) return 'SB';
-            if (heading >= 202.5 && heading < 247.5) return 'SW';
-            if (heading >= 247.5 && heading < 292.5) return 'WB';
-            if (heading >= 292.5 && heading < 337.5) return 'NW';
-            return '--';
+        // Fallback for when official direction is missing, constrained strictly by TTC route logic
+        function getRouteLogicalDirection(route, heading) {
+            if (isNaN(heading)) return '--';
+            
+            // Normalize heading to a strict 0-359 range
+            heading = heading % 360;
+            if (heading < 0) heading += 360;
+
+            if (route === '509') {
+                // 509 Eastbound (towards Union): generally North and East (315° through 0° to 135°)
+                if (heading >= 315 || heading < 135) return 'EB';
+                // 509 Westbound (towards Exhibition): generally South and West (135° to 315°)
+                return 'WB';
+            } else {
+                // 510 is exclusively Northbound/Southbound
+                // 90 to 270 covers all Southward movement towards Queens Quay
+                if (heading >= 90 && heading < 270) return 'SB';
+                // 270 to 90 covers all Northward movement towards Spadina Station
+                return 'NB';
+            }
+        }
+
+        // Smoothly interpolates marker position over the update interval
+        function animateMarkerLatLng(marker, lat, lng, duration) {
+            const startLatLng = marker.getLatLng();
+            const startLat = startLatLng.lat;
+            const startLng = startLatLng.lng;
+            const deltaLat = lat - startLat;
+            const deltaLng = lng - startLng;
+            
+            // Skip animation for micro-movements to save performance
+            if (Math.abs(deltaLat) < 0.00001 && Math.abs(deltaLng) < 0.00001) {
+                marker.setLatLng([lat, lng]);
+                return;
+            }
+
+            const startTime = performance.now();
+
+            function step(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                marker.setLatLng([
+                    startLat + deltaLat * progress,
+                    startLng + deltaLng * progress
+                ]);
+
+                if (progress < 1) {
+                    marker._animId = requestAnimationFrame(step);
+                }
+            }
+
+            if (marker._animId) {
+                cancelAnimationFrame(marker._animId);
+            }
+            marker._animId = requestAnimationFrame(step);
         }
 
         async function updateData() {
             if (isUpdating) return;
             isUpdating = true;
-            
-            const refreshIcon = document.getElementById('refresh-icon');
-            if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
             try {
                 const results = await Promise.all(activeRoutes.map(route => fetchVehicles(route)));
                 const allVehicles = results.flat();
-                renderVehicles(allVehicles);
+                const mapNeedsUpdate = renderVehicles(allVehicles);
                 
-                const now = new Date();
-                document.getElementById('last-updated-text').innerText = 'SYNC @ ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                // Only reset the sync time if vehicle positions actually changed
+                if (mapNeedsUpdate) {
+                    lastSyncTime = Date.now();
+                }
                 
                 const c509 = allVehicles.filter(v => v.route === '509').length;
                 const c510a = allVehicles.filter(v => v.route === '510' && !v.isMuted).length;
@@ -343,7 +412,6 @@
                 console.error("Sync Error:", error);
             } finally {
                 isUpdating = false;
-                if (refreshIcon) refreshIcon.classList.remove('animate-spin');
             }
         }
 
@@ -359,14 +427,24 @@
                     const dirTag = v.getAttribute('dirTag') || '';
                     const isMuted = routeTag === '510' && dirTag.toLowerCase().includes('510b');
                     
+                    // Directly pull scheduled logical direction if TTC provides it explicitly
+                    let officialDirection = '--';
+                    const dirMatch = dirTag.match(/(NB|SB|EB|WB)$/i);
+                    if (dirMatch) {
+                        officialDirection = dirMatch[1].toUpperCase();
+                    } else {
+                        officialDirection = getRouteLogicalDirection(routeTag, parseFloat(v.getAttribute('heading')));
+                    }
+                    
                     return {
                         id: v.getAttribute('id'),
                         route: routeTag,
                         branch: isMuted ? '510B' : (routeTag === '510' ? '510A' : '509'),
                         lat: parseFloat(v.getAttribute('lat')),
                         lon: parseFloat(v.getAttribute('lon')),
-                        heading: parseFloat(v.getAttribute('heading')),
-                        speed: parseFloat(v.getAttribute('speedKmHr')),
+                        heading: parseFloat(v.getAttribute('heading')) || 0,
+                        cardinalText: officialDirection,
+                        speed: parseFloat(v.getAttribute('speedKmHr')) || 0,
                         secsSinceReport: parseInt(v.getAttribute('secsSinceReport')),
                         isMuted: isMuted,
                         fetchedAt: Date.now()
@@ -377,16 +455,17 @@
 
         function renderVehicles(vehicles) {
             const currentIds = new Set(vehicles.map(v => v.id));
+            let mapNeedsUpdate = false;
 
             Object.keys(vehicleMarkers).forEach(id => {
                 if (!currentIds.has(id)) {
                     map.removeLayer(vehicleMarkers[id]);
                     delete vehicleMarkers[id];
+                    mapNeedsUpdate = true;
                 }
             });
 
             vehicles.forEach(v => {
-                const cardinal = getCardinal(v.heading);
                 let fillClass = '';
                 let strokeClass = '';
                 
@@ -398,31 +477,13 @@
                     strokeClass = v.isMuted ? 'route-510b-stroke' : 'route-510-stroke';
                 }
                 
-                const iconHtml = `
-                    <div class="marker-container" id="marker-${v.id}">
-                        <div class="direction-badge">${cardinal}</div>
-                        <div class="streetcar-arrow" style="transform: rotate(${v.heading}deg)">
-                            <svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M50 5 L90 85 L50 70 L10 85 Z" class="${fillClass} ${strokeClass}" stroke-width="8" stroke-linejoin="round" />
-                            </svg>
-                        </div>
-                    </div>
-                `;
-
-                const icon = L.divIcon({
-                    className: 'custom-div-icon',
-                    html: iconHtml,
-                    iconSize: [32, 40],
-                    iconAnchor: [16, 20]
-                });
-
                 const popupContent = `
                     <div class="p-1 min-w-[130px]">
                         <div class="flex items-center justify-between mb-1.5 pb-1 border-b border-slate-100">
                             <span class="text-[10px] font-black ${v.isMuted ? 'text-slate-400':'text-slate-800'} uppercase">${v.branch}</span>
                             <span class="text-[9px] font-bold text-slate-400">#${v.id}</span>
                         </div>
-                        <p class="text-xs font-bold text-slate-800">${cardinal} @ ${v.speed} km/h</p>
+                        <p class="text-xs font-bold text-slate-800">${v.cardinalText} @ ${v.speed} km/h</p>
                         <p class="text-[9px] text-slate-400 font-bold uppercase mt-1 tracking-tight">
                             Synced <span class="live-report-timer" data-start="${v.secsSinceReport}" data-fetched="${v.fetchedAt}">${v.secsSinceReport}</span>s ago
                         </p>
@@ -430,17 +491,57 @@
                 `;
 
                 if (vehicleMarkers[v.id]) {
-                    vehicleMarkers[v.id].setLatLng([v.lat, v.lon]);
-                    vehicleMarkers[v.id].setIcon(icon);
-                    if (vehicleMarkers[v.id].getPopup()) {
-                        vehicleMarkers[v.id].getPopup().setContent(popupContent);
+                    const prev = vehicleMarkers[v.id].lastData;
+                    
+                    // Only update the map if the specific data point changed from the last fetch
+                    const positionChanged = !prev || prev.lat !== v.lat || prev.lon !== v.lon || prev.heading !== v.heading || prev.cardinalText !== v.cardinalText;
+
+                    if (positionChanged) {
+                        mapNeedsUpdate = true;
+                        
+                        // Use smooth animation instead of instant jump
+                        animateMarkerLatLng(vehicleMarkers[v.id], v.lat, v.lon, UPDATE_INTERVAL);
+                        
+                        // Manipulate DOM directly to prevent Leaflet from destroying the div and resetting the CSS transition
+                        const el = vehicleMarkers[v.id].getElement();
+                        if (el) {
+                            const arrow = el.querySelector('.streetcar-arrow');
+                            if (arrow) arrow.style.transform = `rotate(${v.heading}deg)`;
+                            const badge = el.querySelector('.direction-badge');
+                            if (badge && badge.innerText !== v.cardinalText) badge.innerText = v.cardinalText;
+                        }
+                        
+                        vehicleMarkers[v.id].setPopupContent(popupContent);
+                        vehicleMarkers[v.id].lastData = v;
                     }
                 } else {
+                    mapNeedsUpdate = true;
+                    const iconHtml = `
+                        <div class="marker-container" id="marker-${v.id}">
+                            <div class="direction-badge">${v.cardinalText}</div>
+                            <div class="streetcar-arrow" style="transform: rotate(${v.heading}deg)">
+                                <svg width="22" height="22" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M50 5 L90 85 L50 70 L10 85 Z" class="${fillClass} ${strokeClass}" stroke-width="8" stroke-linejoin="round" />
+                                </svg>
+                            </div>
+                        </div>
+                    `;
+
+                    const icon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: iconHtml,
+                        iconSize: [32, 40],
+                        iconAnchor: [16, 20]
+                    });
+
                     const marker = L.marker([v.lat, v.lon], { icon }).addTo(map);
                     marker.bindPopup(popupContent);
+                    marker.lastData = v;
                     vehicleMarkers[v.id] = marker;
                 }
             });
+            
+            return mapNeedsUpdate;
         }
 
         function updatePopupTimers() {
@@ -456,16 +557,24 @@
             if (activeRoutes.includes(route)) {
                 if (activeRoutes.length === 1) return;
                 activeRoutes = activeRoutes.filter(r => r !== route);
-                if (routeLineLayers[route]) {
-                    routeLineLayers[route].forEach(layer => map.removeLayer(layer));
-                }
             } else {
                 activeRoutes.push(route);
-                if (routeLineLayers[route]) {
-                    routeLineLayers[route].forEach(layer => map.addLayer(layer));
-                }
             }
             
+            // Clear map layers
+            ['510', '509'].forEach(r => {
+                if (routeLineLayers[r]) {
+                    routeLineLayers[r].forEach(layer => map.removeLayer(layer));
+                }
+            });
+
+            // Re-render map layers in strict order (510 bottom, 509 top)
+            ['510', '509'].forEach(r => {
+                if (activeRoutes.includes(r) && routeLineLayers[r]) {
+                    routeLineLayers[r].forEach(layer => map.addLayer(layer));
+                }
+            });
+
             Object.values(vehicleMarkers).forEach(m => map.removeLayer(m));
             vehicleMarkers = {};
             updateButtonUI();
@@ -488,7 +597,6 @@
             document.getElementById('card-510').style.opacity = is510 ? "1" : "0.3";
         }
 
-        function forceUpdate() { updateData(); }
     </script>
 </body>
 </html>
