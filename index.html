@@ -313,11 +313,11 @@
 
         async function initMap() {
             map = L.map('map', { 
-                zoomControl: false,
+                zoomControl: false, 
                 attributionControl: false 
             }).setView([43.641, -79.388], 15);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_49u9_1_a063ea2ced1456bef5e155b5', {
                 maxZoom: 19
             }).addTo(map);
 
